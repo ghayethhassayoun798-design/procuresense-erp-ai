@@ -1,0 +1,121 @@
+{
+  "name": "ProcureSense - Alerte stock bas (modèle)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:3001/api/recommendations?onlySuggested=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer CHANGE_ME"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http",
+      "name": "ERP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$input.first().json; const a=Array.isArray(d)?d:[]; if(!a.length)return []; return [{json:{subject:'ProcureSense : alertes de stock bas ('+a.length+')',body:a.map(x=>x.sku+' — '+x.name+' : stock '+x.stock+', seuil '+x.minimum+', proposition '+x.suggested_quantity+' unités. '+x.explanation).join('\\n')}}];"
+      },
+      "id": "format",
+      "name": "Préparer le résumé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "procuresense@example.local",
+        "toEmail": "CHANGE_ME",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.body}}"
+      },
+      "id": "email",
+      "name": "Send notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "ERP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP API": {
+      "main": [
+        [
+          {
+            "node": "Préparer le résumé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le résumé": {
+      "main": [
+        [
+          {
+            "node": "Send notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e1b00836-2ab1-43a6-a1b5-465dc7c61dc6",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

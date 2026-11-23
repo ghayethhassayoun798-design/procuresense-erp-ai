@@ -1,0 +1,20 @@
+databases:
+  - name: procuresense-postgres
+    databaseName: procuresense
+    user: procuresense_app
+    plan: free
+
+services:
+  - type: web
+    name: procuresense-erp-ai
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy --schema prisma/schema.prisma && npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: procuresense-postgres
+          property: connectionString
+      - key: NODE_ENV
+        value: production

@@ -1,0 +1,11 @@
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { one, run } from "./db.mjs";
+import { roleAllowed } from "./business.mjs";
+const roles=["ADMIN","PURCHASING_MANAGER","SALES_MANAGER","STOCK_MANAGER","ACCOUNTANT","BI_VIEWER"];
+export function passwordHash(password,salt=randomBytes(16).toString("hex")){return `${salt}:${scryptSync(password,salt,64).toString("hex")}`;}
+export function passwordMatches(password,stored){const [salt,hex]=stored.split(":"),a=scryptSync(password,salt,64),b=Buffer.from(hex,"hex");return a.length===b.length&&timingSafeEqual(a,b);}
+export async function getSession(request){const bearer=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"");const automation=process.env.AUTOMATION_TOKEN;if(request.method==="GET"&&automation&&bearer){const a=Buffer.from(bearer),b=Buffer.from(automation);if(a.length===b.length&&timingSafeEqual(a,b))return {id:null,name:"n8n automation",email:"automation@local",role:"BI_VIEWER"};}const cookie=request.headers.get("cookie")||"",token=cookie.split(";").map(x=>x.trim()).find(x=>x.startsWith("ps_session="))?.slice("ps_session=".length);if(!token)return null;const hash=createHash("sha256").update(decodeURIComponent(token)).digest("hex");return await one("SELECT u.id,u.name,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND u.active=1",hash)||null;}
+export async function authError(request,allowed=roles){const user=await getSession(request);if(!user)return Response.json({error:"Connexion requise."},{status:401});if(!roleAllowed(user.role,allowed))return Response.json({error:"Accès refusé pour ce rôle."},{status:403});return null;}
+export async function issueSession(userId){const token=randomBytes(32).toString("base64url"),hash=createHash("sha256").update(token).digest("hex"),expires=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,19).replace("T"," ");await run("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",hash,userId,expires);return token;}
+export async function clearSession(token){if(token){const hash=createHash("sha256").update(token).digest("hex");await run("DELETE FROM sessions WHERE token_hash=?",hash);}}
+export {roles};

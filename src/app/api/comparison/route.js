@@ -1,0 +1,5 @@
+import { authError } from "@/lib/auth.mjs";
+import { all } from "@/lib/db.mjs";
+import { scoreSupplierOffer } from "@/lib/business.mjs";
+export const runtime="nodejs";
+export async function GET(request){const denied=await authError(request,["ADMIN","PURCHASING_MANAGER","BI_VIEWER"]);if(denied)return denied;const rows=await all("SELECT o.id,o.product_id,p.sku,p.name product,s.id supplier_id,s.name supplier,s.reliability,o.unit_price_cents,o.quality,o.delivery_days,o.payment_terms FROM supplier_offers o JOIN products p ON p.id=o.product_id JOIN suppliers s ON s.id=o.supplier_id ORDER BY p.name,o.unit_price_cents"),grouped=new Map();for(const row of rows){if(!grouped.has(row.product_id))grouped.set(row.product_id,[]);grouped.get(row.product_id).push(row);}const ranked=[...grouped.values()].flatMap(group=>group.map(x=>({...x,score:scoreSupplierOffer(x,group.map(y=>y.unit_price_cents))})).sort((a,b)=>b.score-a.score));if(new URL(request.url).searchParams.get("topPerProduct")==="1"){const seen=new Set();return Response.json(ranked.filter(x=>{if(seen.has(x.product_id))return false;seen.add(x.product_id);return true;}));}return Response.json(ranked);}

@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         String    @default("BI_VIEWER")
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  sessions     Session[]
+  auditLogs    AuditLog[]
+  @@map("users")
+}
+
+model Session {
+  tokenHash String   @id @map("token_hash")
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("sessions")
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  products Product[]
+  @@map("categories")
+}
+
+model Product {
+  id          Int             @id @default(autoincrement())
+  sku         String          @unique
+  name        String
+  categoryId  Int?            @map("category_id")
+  priceCents  Int             @default(0) @map("price_cents")
+  stock       Int             @default(0)
+  minimum     Int             @default(0)
+  active      Boolean         @default(true)
+  category    Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  movements   StockMovement[]
+  purchaseItems PurchaseItem[]
+  invoiceItems  InvoiceItem[]
+  requestItems  PurchaseRequestItem[]
+  salesItems  SalesItem[]
+  offers      SupplierOffer[]
+  createdAt   DateTime        @default(now()) @map("created_at")
+  @@index([name])
+  @@map("products")
+}
+
+model Supplier {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique
+  email       String?
+  phone       String?
+  reliability Int             @default(80)
+  offers      SupplierOffer[]
+  purchaseOrders PurchaseOrder[]
+  @@map("suppliers")
+}
+
+model Customer {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String?
+  phone       String?
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
+  @@map("customers")
+}
+
+model SupplierOffer {
+  id             Int      @id @default(autoincrement())
+  supplierId     Int      @map("supplier_id")
+  productId      Int      @map("product_id")
+  unitPriceCents Int      @map("unit_price_cents")
+  quality        Int
+  deliveryDays   Int      @map("delivery_days")
+  paymentTerms   String   @default("30 jours") @map("payment_terms")
+  supplier       Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([supplierId, productId])
+  @@map("supplier_offers")
+}
+
+model StockMovement {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  quantity  Int
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  @@index([productId, createdAt])
+  @@map("stock_movements")
+}
+
+model PurchaseRequest {
+  id        Int                   @id @default(autoincrement())
+  reference String                @unique
+  status    String                @default("PENDING")
+  createdAt DateTime              @default(now()) @map("created_at")
+  items     PurchaseRequestItem[]
+  @@map("purchase_requests")
+}
+
+model PurchaseRequestItem {
+  id        Int             @id @default(autoincrement())
+  requestId Int             @map("request_id")
+  productId Int             @map("product_id")
+  quantity  Int
+  request   PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  @@map("purchase_request_items")
+}
+
+model PurchaseOrder {
+  id         Int           @id @default(autoincrement())
+  reference  String        @unique
+  supplierId Int?          @map("supplier_id")
+  status     String        @default("DRAFT")
+  totalCents Int           @default(0) @map("total_cents")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  supplier   Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items      PurchaseItem[]
+  @@map("purchase_orders")
+}
+
+model PurchaseItem {
+  id             Int           @id @default(autoincrement())
+  orderId        Int           @map("order_id")
+  productId      Int           @map("product_id")
+  quantity       Int
+  unitPriceCents Int           @map("unit_price_cents")
+  order          PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  @@map("purchase_items")
+}
+
+model SalesOrder {
+  id         Int         @id @default(autoincrement())
+  reference  String      @unique
+  customerId Int?        @map("customer_id")
+  status     String      @default("DRAFT")
+  totalCents Int         @default(0) @map("total_cents")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items      SalesItem[]
+  invoice    Invoice?
+  @@map("sales_orders")
+}
+
+model SalesItem {
+  id             Int       @id @default(autoincrement())
+  orderId        Int       @map("order_id")
+  productId      Int       @map("product_id")
+  quantity       Int
+  unitPriceCents Int       @map("unit_price_cents")
+  order          SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  @@map("sales_items")
+}
+
+model Invoice {
+  id          Int         @id @default(autoincrement())
+  reference   String      @unique
+  customerId  Int?        @map("customer_id")
+  salesOrderId Int?       @unique @map("sales_order_id")
+  totalCents  Int         @map("total_cents")
+  dueDate     DateTime?   @map("due_date")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  customer    Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  salesOrder  SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  payments    Payment[]
+  items       InvoiceItem[]
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id             Int      @id @default(autoincrement())
+  invoiceId      Int      @map("invoice_id")
+  productId      Int      @map("product_id")
+  quantity       Int
+  unitPriceCents Int      @map("unit_price_cents")
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  @@map("invoice_items")
+}
+
+model Payment {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int      @map("invoice_id")
+  amountCents Int     @map("amount_cents")
+  method     String   @default("Virement")
+  createdAt  DateTime @default(now()) @map("created_at")
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  @@map("payments")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  action    String
+  entity    String
+  entityId  Int?     @map("entity_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([entity, entityId])
+  @@map("audit_log")
+}
+
+model AppSetting {
+  key   String @id
+  value String
+  @@map("app_settings")
+}
+
+

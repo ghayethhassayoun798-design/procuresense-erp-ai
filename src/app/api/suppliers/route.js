@@ -1,0 +1,6 @@
+import { authError } from "@/lib/auth.mjs";
+import { all, one, run } from "@/lib/db.mjs";
+import { parseBody, supplierCreateSchema } from "@/lib/schemas.mjs";
+export const runtime="nodejs";
+export async function GET(request){const denied=await authError(request);if(denied)return denied;return Response.json(await all("SELECT * FROM suppliers ORDER BY name"));}
+export async function POST(request){const denied=await authError(request,["ADMIN","PURCHASING_MANAGER"]);if(denied)return denied;const parsed=parseBody(supplierCreateSchema,await request.json());if(parsed.error)return Response.json({error:parsed.error},{status:400});const b=parsed.data;if(await one("SELECT id FROM suppliers WHERE lower(name)=lower(?)",b.name))return Response.json({error:"Ce fournisseur existe déjà."},{status:409});try{const r=await run("INSERT INTO suppliers(name,email,phone,reliability) VALUES(?,?,?,?)",b.name,b.email||null,b.phone||null,b.reliability??80);await run("INSERT INTO audit_log(action,entity,entity_id) VALUES('CREATE','Supplier',?)",r.lastInsertRowid);return Response.json({id:r.lastInsertRowid,...b,reliability:b.reliability??80},{status:201});}catch{return Response.json({error:"Impossible de créer ce fournisseur."},{status:400});}}

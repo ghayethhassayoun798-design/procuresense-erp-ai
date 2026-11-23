@@ -1,0 +1,121 @@
+{
+  "name": "ProcureSense - Résumé BI quotidien (modèle)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:3001/api/dashboard",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer CHANGE_ME"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http",
+      "name": "ERP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$input.first().json; const money=n=>(Number(n||0)/1000).toFixed(3)+' DT'; return [{json:{subject:'ProcureSense : synthèse BI quotidienne',body:'Ventes : '+money(d.sales_cents)+'\\nAchats : '+money(d.purchases_cents)+'\\nMarge estimée : '+money(d.estimated_margin_cents)+'\\nCréances : '+money(d.receivable_cents)+'\\nValeur de stock estimée : '+money(d.inventory_cents)+'\\nAlertes stock : '+((d.low_stock||[]).length)+'\\nTop produits : '+(d.top_products||[]).map(x=>x.name+' ('+x.quantity+')').join(', ')}}];"
+      },
+      "id": "format",
+      "name": "Préparer le résumé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "procuresense@example.local",
+        "toEmail": "CHANGE_ME",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.body}}"
+      },
+      "id": "email",
+      "name": "Send notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "ERP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP API": {
+      "main": [
+        [
+          {
+            "node": "Préparer le résumé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le résumé": {
+      "main": [
+        [
+          {
+            "node": "Send notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8082ca7e-8565-4c4b-af75-70adb6168785",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

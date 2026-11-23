@@ -1,0 +1,24 @@
+import { z } from "zod";
+const trimmed = (min, max) => z.string().trim().min(min).max(max);
+export const email = z.string().trim().email().max(254).transform(value => value.toLowerCase());
+export const password = z.string().min(12).max(256);
+export const name = trimmed(1, 120);
+export const contactSchema = z.object({name,email:email.nullable().optional(),phone:z.string().trim().max(40).nullable().optional()}).strict();
+export const customerSchema = contactSchema;
+export const categorySchema = z.object({name:trimmed(1,80)}).strict();
+export const productCreateSchema = z.object({name,sku:z.string().trim().max(40).optional(),price:z.union([z.string(),z.number()]).transform(String).refine(value=>/^\d+(?:[.,]\d{1,3})?$/.test(value),"Prix à trois décimales maximum.").transform(value=>Math.round(Number(value.replace(",","."))*1000)),minimum:z.coerce.number().int().min(0).max(1000000),category:z.string().trim().max(80).optional()}).strict();
+export const productUpdateSchema = z.object({id:z.coerce.number().int().positive(),name:name.optional(),price:z.union([z.string(),z.number()]).transform(String).refine(value=>/^\d+(?:[.,]\d{1,3})?$/.test(value)).transform(value=>Math.round(Number(value.replace(",","."))*1000)).optional(),minimum:z.coerce.number().int().min(0).max(1000000).optional(),category:z.string().trim().max(80).nullable().optional()}).strict();
+const orderLine = z.object({productId:z.coerce.number().int().positive(),quantity:z.coerce.number().int().positive().max(1000000),unitPriceCents:z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional()}).strict();
+export const orderCreateSchema = z.object({type:z.enum(["purchase","sales"]),partnerId:z.coerce.number().int().positive().nullable().optional(),items:z.array(orderLine).min(1).max(200)}).strict();
+export const orderActionSchema = z.object({id:z.coerce.number().int().positive(),type:z.enum(["purchase","sales"]),action:z.enum(["confirm","receive","cancel"])}).strict();
+export const movementSchema = z.object({productId:z.coerce.number().int().positive(),quantity:z.coerce.number().int().refine(value=>value!==0),reason:z.string().trim().min(1).max(120).optional()}).strict();
+export const purchaseRequestSchema = z.object({items:z.array(z.object({productId:z.coerce.number().int().positive(),quantity:z.coerce.number().int().positive().max(1000000)}).strict()).min(1).max(200)}).strict();
+export const purchaseDecisionSchema = z.object({id:z.coerce.number().int().positive(),action:z.enum(["approve","reject"]),supplierId:z.coerce.number().int().positive().optional()}).strict();
+export const paymentSchema = z.object({invoiceId:z.coerce.number().int().positive(),amount:z.union([z.string(),z.number()]).transform(String).refine(value=>/^\d+(?:[.,]\d{1,3})?$/.test(value)).transform(value=>Math.round(Number(value.replace(",","."))*1000)).refine(value=>value>0),method:z.string().trim().min(1).max(40).optional()}).strict();
+export const userCreateSchema = z.object({name,email,password,role:z.enum(["PURCHASING_MANAGER","SALES_MANAGER","STOCK_MANAGER","ACCOUNTANT","BI_VIEWER"])}).strict();
+export const supplierCreateSchema = contactSchema.extend({reliability:z.coerce.number().int().min(0).max(100).optional()}).strict();
+export const settingsSchema = z.object({tax_rate:z.coerce.number().min(0).max(1)}).strict();
+export const aiExplainSchema=z.object({kind:z.enum(["replenishment","supplier-comparison"]),productIds:z.array(z.coerce.number().int().positive()).min(1).max(10)}).strict();
+export const aiChatSchema=z.object({message:z.string().trim().min(1).max(1000)}).strict();
+export const authSchema = z.object({action:z.enum(["setup","login","logout"]),name:z.string().trim().min(1).max(120).optional(),email:email.optional(),password:z.string().max(256).optional()}).strict();
+export function parseBody(schema, body) { const parsed=schema.safeParse(body); return parsed.success ? {data:parsed.data} : {error:parsed.error.issues.map(issue=>`${issue.path.join(".")||"Données"}: ${issue.message}`).join("; ")}; }

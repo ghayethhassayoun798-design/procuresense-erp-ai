@@ -1,0 +1,121 @@
+{
+  "name": "ProcureSense - Comparaison fournisseurs (modèle)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:3001/api/comparison?topPerProduct=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer CHANGE_ME"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http",
+      "name": "ERP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$input.first().json; const a=Array.isArray(d)?d:[]; if(!a.length)return []; return [{json:{subject:'ProcureSense : comparaison fournisseurs ('+a.length+' produits)',body:a.map(x=>x.sku+' — '+x.product+' : '+x.supplier+', prix '+(x.unit_price_cents/1000).toFixed(3)+' DT, score '+x.score+'/100, délai '+x.delivery_days+' jours').join('\\n')}}];"
+      },
+      "id": "format",
+      "name": "Préparer le résumé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "procuresense@example.local",
+        "toEmail": "CHANGE_ME",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.body}}"
+      },
+      "id": "email",
+      "name": "Send notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "ERP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP API": {
+      "main": [
+        [
+          {
+            "node": "Préparer le résumé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le résumé": {
+      "main": [
+        [
+          {
+            "node": "Send notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2755d156-eaba-4a86-9414-285c597fd7a2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

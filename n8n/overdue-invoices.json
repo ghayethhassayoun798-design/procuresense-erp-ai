@@ -1,0 +1,121 @@
+{
+  "name": "ProcureSense - Factures en retard (modèle)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:3001/api/invoices?status=EN%20RETARD",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer CHANGE_ME"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http",
+      "name": "ERP API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$input.first().json; const a=Array.isArray(d)?d:[]; if(!a.length)return []; return [{json:{subject:'ProcureSense : factures en retard ('+a.length+')',body:a.map(x=>x.reference+' — '+(x.customer||'Client')+' — solde '+(x.balance_cents/1000).toFixed(3)+' DT — échéance '+x.due_date).join('\\n')}}];"
+      },
+      "id": "format",
+      "name": "Préparer le résumé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "procuresense@example.local",
+        "toEmail": "CHANGE_ME",
+        "subject": "={{$json.subject}}",
+        "text": "={{$json.body}}"
+      },
+      "id": "email",
+      "name": "Send notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "ERP API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP API": {
+      "main": [
+        [
+          {
+            "node": "Préparer le résumé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le résumé": {
+      "main": [
+        [
+          {
+            "node": "Send notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9403bdef-72a9-4d0c-8111-61c3499f30c1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
